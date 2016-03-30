@@ -26,7 +26,6 @@ import shutil
 import pyaes as pa
 import os.path as op
 import pyscrypt as ps
-from time import sleep
 from kivy.app import App
 from kivy.clock import Clock
 from functools import partial
@@ -511,22 +510,22 @@ class Uploader(Screen):
             self.hyde(self.unlock)
         else:
             self.unlock.disabled = False
+            # if not defined
             for i, screen in enumerate(self.parent.screen_names):
                 if screen == 'uploader':
-                    self.parent.screens[i].ids.machine._update_files()
-                    sleep(1)
-                    self.parent.screens[i].ids.laboratory._update_files()
-                    sleep(1)
+                    Clock.schedule_once(partial(self.update,i))
                 elif screen == 'viewer':
-                    self.parent.screens[i].ids.machine._update_files()
-                    sleep(1)
-                    self.parent.screens[i].ids.laboratory._update_files()
-                    sleep(1)
+                    Clock.schedule_once(partial(self.update,i))
+            # else - get screens straight & clock
 
     def hyde(self, button):
         button.disabled = True
         self.unlock = button
         Thread(target=self._hyde).start()
+
+    def update(self, i, *args):
+        self.parent.screens[i].ids.laboratory._update_files()
+        # to class: add, _hyde, _extract, update
 
 
 class Viewer(Screen):
@@ -590,8 +589,6 @@ class Viewer(Screen):
             children = self.ids.filelist.children
             i = ntpath.basename(item)
             for child in children:
-                print '______'
-                print str(self.target), str(i)
                 fin = open(item, 'rb')
                 fout = open(op.join(self.target, i), 'wb')
                 pa.decrypt_stream(aes, fin, fout)
@@ -606,15 +603,9 @@ class Viewer(Screen):
             self.unlock.disabled = False
             for i, screen in enumerate(self.parent.screen_names):
                 if screen == 'uploader':
-                    self.parent.screens[i].ids.machine._update_files()
-                    sleep(1)
-                    self.parent.screens[i].ids.laboratory._update_files()
-                    sleep(1)
+                    Clock.schedule_once(partial(self.update,i))
                 elif screen == 'viewer':
-                    self.parent.screens[i].ids.machine._update_files()
-                    sleep(1)
-                    self.parent.screens[i].ids.laboratory._update_files()
-                    sleep(1)
+                    Clock.schedule_once(partial(self.update,i))
 
     def extract(self, button, target):
         button.disabled = True
@@ -624,6 +615,8 @@ class Viewer(Screen):
             self.target = target[0].encode('utf-8')
         Thread(target=self._extract).start()
 
+    def update(self, i, *args):
+        self.parent.screens[i].ids.machine._update_files()
 
 class Exporter(Screen):
     pass
