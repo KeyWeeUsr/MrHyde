@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # MrHyde - A simple way to encrypt your files
-# Version: 0.1
+# Version: 0.2
 # Copyright (C) 2016, KeyWeeUsr(Peter Badida) <keyweeusr@gmail.com>
 # License: GNU GPL v3.0
 #
@@ -252,7 +252,7 @@ Builder.load_string('''
                     on_release: root.add(root.ids.laboratory.selection)
                 Button:
                     text: 'Extract'
-                    on_release: root.extract(self, root.ids.machine.selection)
+                    on_release: root.hyde(self, root.ids.machine.selection)
 
 <NewPass>:
     BoxLayout:
@@ -452,23 +452,19 @@ class Lab(Screen):
             widget.text = dec
 
 
-class Uploader(Screen):
-    def __init__(self, **kw):
+class Way(object):
+    def __init__(self, screen):
         self.app = App.get_running_app()
-        self.path = self.app.path
-        super(Uploader, self).__init__(**kw)
-        Clock.schedule_interval(self.checkpath, 1)
-
-    def checkpath(self, t):
-        if op.exists(self.path+'/transform/dr'):
-            self.ids.laboratory.rootpath = self.path+'/transform/dr'
-            Clock.unschedule(self.checkpath)
+        self.upl_screens = []
+        self.scr = screen
+        self.path = self.scr.app.path
+        self.default_target = self.path + '/transform/dr/'
 
     def add(self, item):
-        scroll = self.ids.filelist
+        scroll = self.scr.ids.filelist
         if len(item) == 0:
             itemlist = []
-            observablelist = self.ids.machine.files
+            observablelist = self.scr.ids.machine.files
             for i in observablelist:
                 if i != '..\\':
                     itemlist.append(i)
@@ -477,55 +473,79 @@ class Uploader(Screen):
                     self.app.flist.append(i.encode('utf-8'))
                     i = ntpath.basename(i.encode('utf-8'))
                     scroll.add_widget(FileItem(text=i))
-            print self.app.flist
         else:
             i = item[0].encode('utf-8')
             if i not in self.app.flist:
                 self.app.flist.append(i)
                 i = ntpath.basename(i)
                 scroll.add_widget(FileItem(text=i))
-            print self.app.flist
 
-    def _hyde(self):
+    def hyde(self, target=None):
+        target = self.default_target if target is None else target
         if self.app.flist == []:
             return
         flist = self.app.flist
         key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
         aes = pa.AESModeOfOperationCTR(key32)
-        for child in self.ids.filelist.children:
+        for child in self.scr.ids.filelist.children:
             child.children[1].disabled = True
         for item in flist:
-            children = self.ids.filelist.children
+            children = self.scr.ids.filelist.children
             i = ntpath.basename(item)
             for child in children:
                 fin = open(item, 'rb')
-                fout = open(self.path+'/transform/dr/'+i, 'wb')
+                fout = open(op.join(target, i), 'wb')
                 pa.encrypt_stream(aes, fin, fout)
                 fin.close()
                 fout.close()
                 if i in child.children[0].text:
-                    self.ids.filelist.remove_widget(child)
+                    self.scr.ids.filelist.remove_widget(child)
                     self.app.flist.remove(item)
         if self.app.flist != []:
-            self.hyde(self.unlock)
+            if target == op.join(self.path, '/transform/dr/'):
+                self.scr.hyde(self.scr.unlock)
+            else:
+                self.scr.hyde(self.scr.unlock, target)
         else:
-            self.unlock.disabled = False
-            # if not defined
-            for i, screen in enumerate(self.parent.screen_names):
-                if screen == 'uploader':
-                    Clock.schedule_once(partial(self.update,i))
-                elif screen == 'viewer':
-                    Clock.schedule_once(partial(self.update,i))
-            # else - get screens straight & clock
+            self.scr.unlock.disabled = False
+            if self.upl_screens == []:
+                for i, screen in enumerate(self.scr.parent.screen_names):
+                    if screen == 'uploader':
+                        self.upl_screens.append(i)
+                        Clock.schedule_once(partial(self.update, i))
+                    elif screen == 'viewer':
+                        Clock.schedule_once(partial(self.update, i))
+                        self.upl_screens.append(i)
+            else:
+                p1 = partial(self.update, self.upl_screens[0])
+                p2 = partial(self.update, self.upl_screens[1])
+                Clock.schedule_once(p1)
+                Clock.schedule_once(p2)
+
+    def update(self, i, *args):
+        self.scr.parent.screens[i].ids.laboratory._update_files()
+        self.scr.parent.screens[i].ids.machine._update_files()
+
+
+class Uploader(Screen):
+    def __init__(self, **kw):
+        self.app = App.get_running_app()
+        self.path = self.app.path
+        super(Uploader, self).__init__(**kw)
+        Clock.schedule_interval(self.checkpath, 1)
+        way = Way(self)
+        self.add = way.add
+        self._hyde = way.hyde
+
+    def checkpath(self, t):
+        if op.exists(self.path+'/transform/dr'):
+            self.ids.laboratory.rootpath = self.path+'/transform/dr'
+            Clock.unschedule(self.checkpath)
 
     def hyde(self, button):
         button.disabled = True
         self.unlock = button
         Thread(target=self._hyde).start()
-
-    def update(self, i, *args):
-        self.parent.screens[i].ids.laboratory._update_files()
-        # to class: add, _hyde, _extract, update
 
 
 class Viewer(Screen):
@@ -536,6 +556,9 @@ class Viewer(Screen):
         self.phase = 1
         super(Viewer, self).__init__(**kw)
         Clock.schedule_once(self.getletters, 1)
+        way = Way(self)
+        self.add = way.add
+        self._hyde = way.hyde
 
     def getletters(self, t):
         if platform == 'win':
@@ -555,68 +578,13 @@ class Viewer(Screen):
     def changerootpath(self, path, *args):
         self.ids.machine.rootpath = path
 
-    def add(self, item):
-        scroll = self.ids.filelist
-        if len(item) == 0:
-            itemlist = []
-            observablelist = self.ids.laboratory.files
-            for i in observablelist:
-                if i != '..\\':
-                    itemlist.append(i)
-            for i in itemlist:
-                if i not in self.app.flist:
-                    self.app.flist.append(i.encode('utf-8'))
-                    i = ntpath.basename(i.encode('utf-8'))
-                    scroll.add_widget(FileItem(text=i))
-            print self.app.flist
-        else:
-            i = item[0].encode('utf-8')
-            if i not in self.app.flist:
-                self.app.flist.append(i)
-                i = ntpath.basename(i)
-                scroll.add_widget(FileItem(text=i))
-            print self.app.flist
-
-    def _extract(self):
-        if self.app.flist == []:
-            return
-        flist = self.app.flist
-        key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-        aes = pa.AESModeOfOperationCTR(key32)
-        for child in self.ids.filelist.children:
-            child.children[1].disabled = True
-        for item in flist:
-            children = self.ids.filelist.children
-            i = ntpath.basename(item)
-            for child in children:
-                fin = open(item, 'rb')
-                fout = open(op.join(self.target, i), 'wb')
-                pa.decrypt_stream(aes, fin, fout)
-                fin.close()
-                fout.close()
-                if i in child.children[0].text:
-                    self.ids.filelist.remove_widget(child)
-                    self.app.flist.remove(item)
-        if self.app.flist != []:
-            self.extract(self.unlock, self.target)
-        else:
-            self.unlock.disabled = False
-            for i, screen in enumerate(self.parent.screen_names):
-                if screen == 'uploader':
-                    Clock.schedule_once(partial(self.update,i))
-                elif screen == 'viewer':
-                    Clock.schedule_once(partial(self.update,i))
-
-    def extract(self, button, target):
+    def hyde(self, button, target):
         button.disabled = True
         self.unlock = button
-        print type(target)
         if type(target) != type(''):
-            self.target = target[0].encode('utf-8')
-        Thread(target=self._extract).start()
+            target = target[0].encode('utf-8')
+        Thread(target=self._hyde(target)).start()
 
-    def update(self, i, *args):
-        self.parent.screens[i].ids.machine._update_files()
 
 class Exporter(Screen):
     pass
@@ -647,6 +615,22 @@ class Root(ScreenManager):
             self.current = 'home'
 
 
+class Unique(object):
+    def get(self):
+        getattr(self, 'get_'+str(platform))()
+        return self.unique
+
+    def get_win(self):
+        import _winreg
+        registry = _winreg.HKEY_LOCAL_MACHINE
+        address = 'SOFTWARE\\Microsoft\\Cryptography'
+        keyargs = _winreg.KEY_READ | _winreg.KEY_WOW64_64KEY
+        key = _winreg.OpenKey(registry, address, 0, keyargs)
+        value = _winreg.QueryValueEx(key, 'MachineGuid')
+        _winreg.CloseKey(key)
+        self.unique = value[0]
+
+
 class MrHyde(App):
     path = op.dirname(op.abspath(__file__))
     flist = []
@@ -658,15 +642,7 @@ class MrHyde(App):
         pass
 
     def build(self):
-        if platform == 'win':
-            import _winreg
-            registry = _winreg.HKEY_LOCAL_MACHINE
-            address = 'SOFTWARE\\Microsoft\\Cryptography'
-            keyargs = _winreg.KEY_READ | _winreg.KEY_WOW64_64KEY
-            key = _winreg.OpenKey(registry, address, 0, keyargs)
-            value = _winreg.QueryValueEx(key, 'MachineGuid')
-            _winreg.CloseKey(key)
-            self.mid = value[0]
+        self.mid = Unique().get()
         return Root()
 
 if __name__ == '__main__':
