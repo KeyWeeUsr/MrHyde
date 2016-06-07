@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # MrHyde - A simple way to encrypt your files
-# Version: 0.2
+# Version: 0.3
 # Copyright (C) 2016, KeyWeeUsr(Peter Badida) <keyweeusr@gmail.com>
 # License: GNU GPL v3.0
 #
@@ -23,293 +23,18 @@ import os
 import re
 import ntpath
 import shutil
-import pyaes as pa
+import vial
 import os.path as op
 import pyscrypt as ps
 from kivy.app import App
 from kivy.clock import Clock
 from functools import partial
-from kivy.lang import Builder
 from kivy.utils import platform
 from kivy.uix.button import Button
 from threading import Thread, Event
 from kivy.uix.boxlayout import BoxLayout
-from kivy.properties import BooleanProperty
+from kivy.properties import BooleanProperty, ListProperty
 from kivy.uix.screenmanager import Screen, ScreenManager
-
-Builder.load_string('''
-<Root>:
-    canvas:
-        Rectangle:
-            source: 'background.png'
-            size: self.size
-    Start:
-        id: start
-        name: 'start'
-    Home:
-        name: 'home'
-    Lab:
-        name: 'laboratory'
-
-<Start>:
-    BoxLayout:
-        orientation: 'vertical'
-        Widget:
-            size_hint_y: 0.3
-        Label:
-            font_size: '20dp'
-            text: 'Set unique passwords for me!\\nPlease do not forget them.'
-            text_size: self.width, None
-            halign: 'center'
-            size_hint_y: None
-            height: self.texture_size[1]
-        Widget:
-            size_hint_y: 0.4
-        HomeInput:
-            id: pas
-            size_hint: 0.8, 0.2
-            pos_hint: {'center_x': 0.5}
-        Widget:
-            size_hint_y: 0.1
-        Button:
-            id: steps
-            size_hint: 0.5,0.2
-            pos_hint: {'center_x': 0.5}
-            text: str(root.phase)+'/4'
-            on_release: root.create()
-        Widget:
-            size_hint_y: 0.1
-        Console:
-            id: log
-            text: ('Dr. J. Quill welcomes you to his crooked world!\\n\\n'\
-                   'First password is only for application. If typed 10 times'\
-                   ' incorrectly, the app will delete all its data.\\nThe '\
-                   'other two passwords are for data.\\n\\nIt is necessary '\
-                   'for passwords to be different from each other for better'\
-                   ' security.\\n\\nPasswords are not stored anywhere, there '\
-                   'is no chance of retrieving them.')
-
-<Home>:
-    BoxLayout:
-        orientation: 'vertical'
-        Label:
-            id: labtitle
-            text: 'Dr. J. Quill'
-            font_size: '60dp'
-            size_hint_y: None
-            height: '180dp'
-        Image:
-            size_hint_y: 0.3
-            source: 'quill.png'
-        Widget:
-            size_hint_y: 0.2
-        Label:
-            text: 'Password 1:'
-            size_hint_y: None
-            height: self.texture_size[1]
-        HomeInput:
-            id: pas1
-        Widget:
-            size_hint_y: 0.05
-        Label:
-            text: 'Password 2:'
-            size_hint_y: None
-            height: self.texture_size[1]
-        HomeInput:
-            id: pas2
-            disabled: True
-        Widget
-            size_hint_y: 0.2
-        Button:
-            text: 'Drink!'
-            size_hint: 0.5, None
-            pos_hint: {'center_x': 0.5}
-            height: '50dp'
-            on_release: root.check(self)
-        Console:
-            id: log
-
-<Lab>:
-    content: root.ids.content
-    BoxLayout:
-        orientation: 'vertical'
-        ActionBar:
-            pos_hint: {'top':1}
-            ActionView:
-                ActionPrevious:
-                    with_previous: False
-                    app_icon: 'quill.png'
-                    app_icon_width: root.width*0.8
-                    title: 'Mr. Hyde'
-                    on_release: root.manager.current = 'home'
-                ActionButton:
-                    text: 'Uploader'
-                    on_release: root.content.current = 'uploader'
-                ActionButton:
-                    text: 'Viewer'
-                    on_release: root.content.current = 'viewer'
-                ActionButton:
-                    text: 'New Pass'
-                    disabled: True
-                ActionButton:
-                    text: 'About'
-                    on_release: root.content.current = 'about'
-        ScreenManager:
-            id: content
-            Screen:
-                Console:
-                    id: verify
-            Uploader:
-                name: 'uploader'
-            Viewer:
-                name: 'viewer'
-            Exporter:
-                name: 'exporter'
-            NewPass:
-                name: 'newpass'
-            About:
-                name: 'about'
-
-<Uploader>:
-    BoxLayout:
-        orientation: 'vertical'
-        Caption:
-            size_hint_y: None
-            height: self.texture_size[1]
-            text: 'Machine'
-        Splitter:
-            sizable_from: 'bottom'
-            min_size: 0
-            rescale_with_parent: True
-            FileChooserIconView:
-                id: machine
-        Caption:
-            size_hint_y: None
-            height: self.texture_size[1]
-            text: 'Laboratory'
-        FileChooserIconView:
-            id: laboratory
-            rootpath: root.path+'/transform/dr'
-        BoxLayout:
-            size_hint_y: None
-            height: '100dp'
-            ScrollView:
-                GridLayout:
-                    cols: 1
-                    id: filelist
-                    size_hint: 0.8, None
-                    height: self.minimum_height
-            BoxLayout:
-                size_hint_x: 0.2
-                orientation: 'vertical'
-                Button:
-                    text: 'Add'
-                    on_release: root.add(root.ids.machine.selection)
-                Button:
-                    text: 'Hyde'
-                    on_release: root.hyde(self)
-
-<Viewer>:
-    BoxLayout:
-        orientation: 'vertical'
-        Caption:
-            size_hint_y: None
-            height: self.texture_size[1]
-            text: 'Machine'
-        Splitter:
-            sizable_from: 'bottom'
-            min_size: 0
-            rescale_with_parent: True
-            FileChooserIconView:
-                id: laboratory
-                rootpath: root.path+'/transform/dr'
-        Caption:
-            size_hint_y: None
-            height: self.texture_size[1]
-            text: 'Laboratory'
-        BoxLayout:
-            id: drives
-            size_hint_y: None
-            height: '30dp'
-        FileChooserIconView:
-            id: machine
-            dirselect: True
-            filters: ['*.____']
-        BoxLayout:
-            size_hint_y: None
-            height: '100dp'
-            ScrollView:
-                GridLayout:
-                    cols: 1
-                    id: filelist
-                    size_hint: 0.8, None
-                    height: self.minimum_height
-            BoxLayout:
-                size_hint_x: 0.2
-                orientation: 'vertical'
-                Button:
-                    text: 'Add'
-                    on_release: root.add(root.ids.laboratory.selection)
-                Button:
-                    text: 'Extract'
-                    on_release: root.hyde(self, root.ids.machine.selection)
-
-<NewPass>:
-    BoxLayout:
-        orientation: 'vertical'
-        Label:
-            text: 'Change passwords for:'
-        Button:
-            text: 'Me'
-        Button:
-            text: 'Data'
-
-<About@Screen>:
-    Label:
-        markup: True
-        text: 'Copyright (C) 2016, KeyWeeUsr(Peter Badida)\\nLicense: GNU '\
-              'GPL v3.0\\nFind me @ https://github.com/KeyWeeUsr'
-
-<HomeInput@TextInput>:
-    height: '50dp'
-    multiline: False
-    size_hint: 0.5, None
-    pos_hint: {'center_x':0.5, 'center_y': 0.5}
-
-<ScrollLabel@Label>:
-    size_hint_y:None
-    text_size:self.width,None
-    height:self.texture_size[1]
-
-<Caption@Label>:
-    canvas.before:
-        Color:
-            rgba: 0.2,0.2,0.2,1
-        Rectangle:
-            size: self.size
-            pos: self.pos
-
-<Console@ScrollView>:
-    text: ''
-    ScrollLabel:
-        text: root.text
-        halign: 'center'
-
-<FileItem>:
-    size_hint_y: None
-    height: '30dp'
-    Button:
-        text: 'x'
-        size_hint_x: 0.2
-        on_release: root.parent.remove_widget(root)
-        on_release: root.rm()
-    Label:
-        text: root.text
-        halign: 'left
-        text_size: self.parent.size[0]*0.8, self.height
-        halign: 'left'
-        valign: 'middle'
-''')
 
 
 class Start(Screen):
@@ -372,8 +97,8 @@ class Start(Screen):
             if pas != '':
                 with open(self.path+'/transform/start.hyde', 'wb') as f:
                     key32 = ps.hash(self.pas, self.pas2, 1024, 1, 1, 32)
-                    aes = pa.AESModeOfOperationCTR(key32)
-                    f.write(aes.encrypt(pas))
+                    aes = vial.Vial(key32)
+                    f.write(aes.encrypt(pas, self.path+'/transform/start.ctr'))
                 self.phase += 1
                 del self.h, self.pas, self.pas2
                 self.manager.current = 'home'
@@ -447,8 +172,8 @@ class Lab(Screen):
             with open(self.path+'/transform/start.hyde', 'rb') as f:
                 dec = f.read()
             key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-            aes = pa.AESModeOfOperationCTR(key32)
-            dec = aes.decrypt(dec)
+            aes = vial.Vial(key32)
+            dec = aes.decrypt(dec, self.path+'/transform/start.ctr')
             widget.text = dec
 
 
@@ -460,11 +185,14 @@ class Way(object):
         self.path = self.scr.app.path
         self.default_target = self.path + '/transform/dr/'
 
-    def add(self, item):
+    def add(self, item, from_screen):
         scroll = self.scr.ids.filelist
         if len(item) == 0:
             itemlist = []
-            observablelist = self.scr.ids.machine.files
+            if from_screen == 'upload':
+                observablelist = self.scr.ids.machine.files
+            elif from_screen == 'view':
+                observablelist = self.scr.ids.laboratory.files
             for i in observablelist:
                 if i != '..\\':
                     itemlist.append(i)
@@ -486,21 +214,31 @@ class Way(object):
             return
         flist = self.app.flist
         key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-        aes = pa.AESModeOfOperationCTR(key32)
+        aes = vial.Vial(key32)
         for child in self.scr.ids.filelist.children:
             child.children[1].disabled = True
         for item in flist:
             children = self.scr.ids.filelist.children
             i = ntpath.basename(item)
+            fin = open(item, 'rb')
+            if isinstance(target, ListProperty) or isinstance(target, list):
+                target = target[0].encode('utf-8')
+            fout = open(op.join(target, i), 'wb')
+            if 'transform' + os.path.sep + 'dr' not in item:
+                aes.encrypt_stream(fin, fout)
+            else:
+                aes.decrypt_stream(fin, fout)
+            fin.close()
+            fout.close()
             for child in children:
-                fin = open(item, 'rb')
-                fout = open(op.join(target, i), 'wb')
-                pa.encrypt_stream(aes, fin, fout)
-                fin.close()
-                fout.close()
                 if i in child.children[0].text:
                     self.scr.ids.filelist.remove_widget(child)
                     self.app.flist.remove(item)
+
+        # if Thread ends en(de)crypting too soon, this recursion ensures that
+        # all files left in 'flist' i.e. even files that could be broken
+        # are en(de)crypted properly, because Thread always fails before
+        # removing file from 'flist' i.e. during encryption
         if self.app.flist != []:
             if target == op.join(self.path, '/transform/dr/'):
                 self.scr.hyde(self.scr.unlock)
@@ -531,8 +269,10 @@ class Uploader(Screen):
     def __init__(self, **kw):
         self.app = App.get_running_app()
         self.path = self.app.path
+        self.driveltrs = []
         super(Uploader, self).__init__(**kw)
         Clock.schedule_interval(self.checkpath, 1)
+        Clock.schedule_once(self.getletters, 1)
         way = Way(self)
         self.add = way.add
         self._hyde = way.hyde
@@ -542,7 +282,25 @@ class Uploader(Screen):
             self.ids.laboratory.rootpath = self.path+'/transform/dr'
             Clock.unschedule(self.checkpath)
 
-    def hyde(self, button):
+    def getletters(self, t):
+        if platform == 'win':
+            if len(self.driveltrs) != 0:
+                return
+            self.driveltrs = re.findall(r"[A-Z]+:.*$",
+                                        os.popen("mountvol /").read(),
+                                        re.MULTILINE)
+            for ltr in self.driveltrs:
+                d = Button(on_release=partial(self.changerootpath, ltr),
+                           text=ltr)
+                self.ids.upload_drives.add_widget(d)
+            self.ids.machine.rootpath = self.driveltrs[0]
+        else:
+            self.ids.upload_drives.height = 0
+
+    def changerootpath(self, path, *args):
+        self.ids.machine.rootpath = path
+
+    def hyde(self, button, *args):
         button.disabled = True
         self.unlock = button
         Thread(target=self._hyde).start()
@@ -553,7 +311,6 @@ class Viewer(Screen):
         self.app = App.get_running_app()
         self.path = self.app.path
         self.driveltrs = []
-        self.phase = 1
         super(Viewer, self).__init__(**kw)
         Clock.schedule_once(self.getletters, 1)
         way = Way(self)
@@ -570,20 +327,24 @@ class Viewer(Screen):
             for ltr in self.driveltrs:
                 d = Button(on_release=partial(self.changerootpath, ltr),
                            text=ltr)
-                self.ids.drives.add_widget(d)
+                self.ids.view_drives.add_widget(d)
             self.ids.machine.rootpath = self.driveltrs[0]
         else:
-            self.ids.drives.height = 0
+            self.ids.view_drives.height = 0
 
     def changerootpath(self, path, *args):
         self.ids.machine.rootpath = path
 
     def hyde(self, button, target):
+        # if not target, show popup where warning that to extract you have to
+        # select folder!
+        self.target = target
         button.disabled = True
         self.unlock = button
-        if type(target) != type(''):
-            target = target[0].encode('utf-8')
-        Thread(target=self._hyde(target)).start()
+        if isinstance(type(target), ListProperty):
+            self.target = self.target[0].encode('utf-8')
+        from functools import partial
+        Thread(target=partial(self._hyde, self.target)).start()
 
 
 class Exporter(Screen):
@@ -629,6 +390,11 @@ class Unique(object):
         value = _winreg.QueryValueEx(key, 'MachineGuid')
         _winreg.CloseKey(key)
         self.unique = value[0]
+
+    def get_android(self):
+        import subprocess
+        cmd = ['getprop', 'ril.serialnumber']
+        self.unique = subprocess.check_output(cmd)[:-1]
 
 
 class MrHyde(App):

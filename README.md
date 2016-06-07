@@ -1,5 +1,7 @@
 # MrHyde
-MrHyde is for now just a little test project for encrypting files. It's slow. Totally slow on old cpus and is recommended for small files and documents(smaller size, less time). On android it's like, really really slow, because it uses pure-python AES. I had few issues with PyCrypto, so I choose pure-python solution. Hopefully I'll speed it up soon.
+MrHyde is for now just a little test project for encrypting files. For
+encrypting is used AES-256 CTR with a customized Counter. The Counter may
+change in future.
 
 What's MyHyde capable of now:
 - Encrypt/decrypt a single file
@@ -8,17 +10,17 @@ What's MyHyde capable of now:
 
 #### How to use
 ###### Requirements
-- kivy
-- pyaes
+- Kivy
+- PyCrypto
 - pyscrypt
 
 ###### Windows/Linux
-- Install kivy
-- `pip install pyaes pyscrypt`
+- Install Kivy and PyCrypto
+- `pip install pyscrypt`
 - Run `main.py`
 
 ###### Android
-- Use KivyLauncher compiled with pyaes and pyscrypt
+- Use KivyLauncher compiled with PyCrypto and pyscrypt
 - Use buildozer with required modules and install APK
 
 #### License
