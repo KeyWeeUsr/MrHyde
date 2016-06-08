@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # MrHyde - A simple way to encrypt your files
-# Version: 0.3
+# Version: 0.4
 # Copyright (C) 2016, KeyWeeUsr(Peter Badida) <keyweeusr@gmail.com>
 # License: GNU GPL v3.0
 #
@@ -54,7 +54,6 @@ class Start(Screen):
                 self.phase += 1
                 self.ids.pas.text = ''
                 self.ids.steps.text = str(self.phase)+'/4'
-                return
         elif self.phase == 2:
             if pas != '':
                 h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
@@ -62,13 +61,11 @@ class Start(Screen):
                     self.ids.pas.text = ''
                     self.ids.log.text += ('\nData pasword can not be the same'
                                           ' as App password!')
-                    return
                 else:
                     self.pas = pas
                     self.phase += 1
                     self.ids.pas.text = ''
                     self.ids.steps.text = str(self.phase)+'/4'
-                    return
         elif self.phase == 3:
             if pas != '':
                 h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
@@ -76,7 +73,6 @@ class Start(Screen):
                     self.ids.pas.text = ''
                     self.ids.log.text += ('\nData pasword can not be the same'
                                           ' as App password!')
-                    return
                 else:
                     self.pas2 = pas
                     os.mkdir(self.path+'/transform')
@@ -102,6 +98,10 @@ class Start(Screen):
                 self.phase += 1
                 del self.h, self.pas, self.pas2
                 self.manager.current = 'home'
+        if self.phase <= 4:
+            self.ids.pas.focus = True
+        else:
+            self.app.home.ids.pas1.focus = True
 
 
 class Home(Screen):
@@ -123,7 +123,7 @@ class Home(Screen):
             with open(self.path+'/._', 'rb') as f:
                 h = f.read()
             if pas not in h:
-                if len(h) < 41:
+                if len(h) < 36:
                     self.ids.log.text += '\nWrong password!'
                     with open(self.path+'/._', 'ab') as f:
                         f.write('x')
@@ -141,6 +141,7 @@ class Home(Screen):
                 button.text = 'Enter!'
                 self.ids.pas2.disabled = False
                 self.phase += 1
+            self.ids.pas1.focus = True
         elif self.phase == 2:
             self.app.pas1 = pas1
             self.app.pas2 = pas2
@@ -151,8 +152,10 @@ class Home(Screen):
             self.manager.current = 'laboratory'
 
     def delete(self):
-        shutil.rmtree(self.path+'/transform')
-        os.remove(self.path+'/._')
+        if op.exists(self.path+'/._'):
+            os.remove(self.path+'/._')
+        if op.exists(self.path+'/transform'):
+            shutil.rmtree(self.path+'/transform')
         Clock.schedule_once(self.deleted, 5)
 
     def deleted(self, t):
@@ -175,6 +178,13 @@ class Lab(Screen):
             aes = vial.Vial(key32)
             dec = aes.decrypt(dec, self.path+'/transform/start.ctr')
             widget.text = dec
+
+    def lock(self):
+        home = self.app.home
+        home.phase = 1
+        home.ids.pas2.disabled = True
+        self.app.pas1 = None
+        self.app.pas2 = None
 
 
 class Way(object):
