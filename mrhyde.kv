@@ -4,11 +4,11 @@
         Rectangle:
             source: 'background.png'
             size: self.size
+    Home:
+        name: 'home'
     Start:
         id: start
         name: 'start'
-    Home:
-        name: 'home'
     Lab:
         name: 'laboratory'
 
@@ -26,11 +26,21 @@
             height: self.texture_size[1]
         Widget:
             size_hint_y: 0.4
-        HomeInput:
-            id: pas
+        BoxLayout:
             size_hint: 0.8, 0.2
             pos_hint: {'center_x': 0.5}
-            on_text_validate: steps.trigger_action()
+            HomeInput:
+                id: pas
+                size_hint: 1, 1
+                on_text_validate: steps.trigger_action()
+            Spinner:
+                id: ctr_value
+                color: [0, 0, 0, 0]
+                background_color: [0, 0, 0, 0]
+                size_hint_x: None
+                width: 0
+                text: '1'
+                values: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
         Widget:
             size_hint_y: 0.1
         Button:
@@ -45,12 +55,12 @@
             id: log
             text:
                 'Dr. J. Quill welcomes you to his crooked world!\n\n'\
-                'First password is only for application. If typed 10 times'\
-                ' incorrectly, the app will delete all its data.\nThe '\
-                'other two passwords are for data only.\n\nIt is necessary '\
-                'for passwords to be different from each other for better'\
-                ' security.\n\nPasswords are not stored anywhere, there '\
-                'is no chance of retrieving them.'
+                'The first password is only for application. If typed 10 '\
+                'times incorrectly, the app will delete all stored data.\n'\
+                'The other two passwords are for data only.\n\nIt is '\
+                'necessary for passwords to be different from each other for '\
+                'better security.\n\nPasswords are not stored anywhere, '\
+                'there is no chance of retrieving them.'
 
 <Home>:
     BoxLayout:
@@ -185,11 +195,13 @@
                 size_hint_x: 0.2
                 orientation: 'vertical'
                 Button:
+                    id: upload_add
                     text: 'Add'
                     on_release: root.add(root.ids.machine.selection, 'upload')
                 Button:
+                    id: upload_hyde
                     text: 'Hyde'
-                    on_release: root.hyde(self)
+                    on_release: root.hyde()
 
 <Viewer>:
     BoxLayout:
@@ -231,11 +243,13 @@
                 size_hint_x: 0.2
                 orientation: 'vertical'
                 Button:
+                    id: view_add
                     text: 'Add'
                     on_release: root.add(root.ids.laboratory.selection, 'view')
                 Button:
+                    id: view_hyde
                     text: 'Extract'
-                    on_release: root.hyde(self, root.ids.machine.selection)
+                    on_release: root.hyde(root.ids.machine.selection)
 
 <NewPass>:
     BoxLayout:
@@ -295,9 +309,24 @@
         size_hint_x: 0.2
         on_release: root.parent.remove_widget(root)
         on_release: root.rm()
-    Label:
-        text: root.text
-        halign: 'left
-        text_size: self.parent.size[0]*0.8, self.height
-        halign: 'left'
-        valign: 'middle'
+    Widget:
+        size_hint_x: 0.02
+    Button:
+        canvas:
+            Color:
+                rgba: 0.8, 0, 0, 1
+            Rectangle:
+                source: 'trash.png'
+                size: self.height * 0.7, self.height * 0.7
+                pos: [c-self.height * 0.35 for i, c in enumerate(self.center)]
+        size_hint_x: 0.2
+        on_release: root.trash()
+    Widget:
+        size_hint_x: 0.02
+    AnchorLayout:
+        anchor_x: 'left'
+        anchor_y: 'center'
+        Label:
+            text: root.text
+            size_hint: None, None
+            size: self.texture_size

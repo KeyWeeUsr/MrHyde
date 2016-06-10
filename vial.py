@@ -4,18 +4,32 @@ from Crypto.Cipher import AES
 
 
 class Secret(object):
-    def __init__(self, secret=None):
+    def __init__(self, **kw):
+        secret = kw.get('secret', None)
+        # let user choose a value 1 - 10 for "c+1"
+        self.custom_value = kw.get('custom_value', None)
+        # let user choose own counter
+        self.custom_counter = kw.get('custom_counter', None)
         if secret is None:
             secret = os.urandom(16)
         self.secret = secret
         self.reset()
 
     def counter(self):
+        if self.custom_counter:
+            return self.custom_counter(self)
+        else:
+            if self.custom_value:
+                return self._counter(int(self.custom_value))
+            else:
+                return self._counter()
+
+    def _counter(self, value=1):
         for i, c in enumerate(self.current):
-            if c + 1 >= 255:
+            if c + value >= 255:
                 self.current[i] = 0
             else:
-                self.current[i] = c + 1
+                self.current[i] = c + value
         return self.current.tostring()
 
     def reset(self):
@@ -23,11 +37,16 @@ class Secret(object):
 
 
 class Vial(object):
-    def __init__(self, key):
+    def __init__(self, key, **kw):
         self.key = key
+        try:
+            del kw['secret']
+        except:
+            pass
+        self.kw = kw
 
     def encrypt(self, text, counter_path):
-        secret = Secret()
+        secret = Secret(**self.kw)
         with open(counter_path, 'wb') as f:
             f.write(secret.secret)
         crypto = AES.new(self.key, AES.MODE_CTR, counter=secret.counter)
@@ -37,13 +56,13 @@ class Vial(object):
     def decrypt(self, text, counter_path):
         with open(counter_path, 'rb') as f:
             load_secret = f.read()
-        secret = Secret(load_secret)
+        secret = Secret(secret=load_secret, **self.kw)
         crypto = AES.new(self.key, AES.MODE_CTR, counter=secret.counter)
         decrypted = crypto.decrypt(text)
         return decrypted
 
     def encrypt_stream(self, input, output):
-        secret = Secret()
+        secret = Secret(**self.kw)
         counter_path = os.path.splitext(output.name)[0] + '.ctr'
         with open(counter_path, 'wb') as f:
             f.write(secret.secret)
@@ -59,7 +78,7 @@ class Vial(object):
         counter_path = os.path.splitext(input.name)[0] + '.ctr'
         with open(counter_path, 'rb') as f:
             counter_read = f.read()
-        secret = Secret(counter_read)
+        secret = Secret(secret=counter_read, **self.kw)
         crypto = AES.new(self.key, AES.MODE_CTR, counter=secret.counter)
         while True:
             data = input.read(4096)
@@ -72,12 +91,12 @@ class Vial(object):
 if __name__ == '__main__':
     root_path = os.path.abspath(os.path.dirname(__file__))
     key32 = '0123456789' * 3 + 'QW'
-    vial = Vial(key32)
+    vial = Vial(key32, custom_value=2)
     path = root_path + '/vial_test.ctr'
     enc = vial.encrypt(16 * 'a', path)
     print 'enc: ', enc, len(enc)
 
-    vial = Vial(key32)
+    vial = Vial(key32, custom_value=2)
     path = root_path + '/vial_test.ctr'
     dec = vial.decrypt(enc, path)
     print 'dec: ', dec, len(dec)

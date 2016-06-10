@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # MrHyde - A simple way to encrypt your files
-# Version: 0.4
+# Version: 0.5
 # Copyright (C) 2016, KeyWeeUsr(Peter Badida) <keyweeusr@gmail.com>
 # License: GNU GPL v3.0
 #
@@ -59,8 +59,9 @@ class Start(Screen):
                 h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
                 if self.h == h:
                     self.ids.pas.text = ''
-                    self.ids.log.text += ('\nData pasword can not be the same'
-                                          ' as App password!')
+                    self.ids.log.text += ('\n\nData pasword can not be the '
+                                          'same as App password!')
+                    self.ids.log.scroll_to(self.ids.log.children[0])
                 else:
                     self.pas = pas
                     self.phase += 1
@@ -71,8 +72,9 @@ class Start(Screen):
                 h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
                 if self.h == h:
                     self.ids.pas.text = ''
-                    self.ids.log.text += ('\nData pasword can not be the same'
-                                          ' as App password!')
+                    self.ids.log.text += ('\n\nData pasword can not be the '
+                                          'same as App password!')
+                    self.ids.log.scroll_to(self.ids.log.children[0])
                 else:
                     self.pas2 = pas
                     os.mkdir(self.path+'/transform')
@@ -83,18 +85,33 @@ class Start(Screen):
                     self.app.pas2 = self.pas2
                     self.phase += 1
                     self.ids.steps.text = str(self.phase)+'/4'
-                    self.ids.log.text += ('\n\nNow set a word or a sentence '
+                    self.ids.log.text += ('\n\n* * *'
+                                          '\n\nNow set a word or a sentence '
                                           'that will tell you if you typed '
-                                          'passwords correctly. If the wrong '
-                                          'passwords are typed, your text '
-                                          'won\'t show.')
+                                          'your passwords correctly. If the '
+                                          'wrong passwords are typed, your '
+                                          'text won\'t show correctly.'
+                                          '\n\nThe value on the right is '
+                                          'a custom increment for your '
+                                          'counter. Choose a value from 1 to '
+                                          '10. The smaller number, the more '
+                                          'often will the counter change. If '
+                                          'you don\'t know what the value '
+                                          'means, leave the default one.')
+                    self.ids.log.scroll_to(self.ids.log.children[0])
+                self.ids.ctr_value.width = self.ids.pas.width / 4.0
+                self.ids.ctr_value.color = [1, 1, 1, 1]
+                self.ids.ctr_value.background_color = [1, 1, 1, 1]
         elif self.phase == 4:
             pas = self.ids.pas.text.encode('utf-8')
+            self.app.ctr_value = self.ids.ctr_value.text
             if pas != '':
                 with open(self.path+'/transform/start.hyde', 'wb') as f:
                     key32 = ps.hash(self.pas, self.pas2, 1024, 1, 1, 32)
-                    aes = vial.Vial(key32)
+                    aes = vial.Vial(key32, counter_value=self.app.ctr_value)
                     f.write(aes.encrypt(pas, self.path+'/transform/start.ctr'))
+                with open(self.path+'/value.ctr', 'wb') as f:
+                    f.write(self.app.ctr_value)
                 self.phase += 1
                 del self.h, self.pas, self.pas2
                 self.manager.current = 'home'
@@ -137,6 +154,8 @@ class Home(Screen):
             else:
                 with open(self.path+'/._', 'wb') as f:
                     f.write(pas)
+                with open(self.path+'/value.ctr', 'rb') as f:
+                    self.app.ctr_value = f.read()
                 self.ids.labtitle.text = 'Mr. Hyde'
                 button.text = 'Enter!'
                 self.ids.pas2.disabled = False
@@ -154,6 +173,8 @@ class Home(Screen):
     def delete(self):
         if op.exists(self.path+'/._'):
             os.remove(self.path+'/._')
+        if op.exists(self.path+'/value.ctr'):
+            os.remove(self.path+'/value.ctr')
         if op.exists(self.path+'/transform'):
             shutil.rmtree(self.path+'/transform')
         Clock.schedule_once(self.deleted, 5)
@@ -175,7 +196,7 @@ class Lab(Screen):
             with open(self.path+'/transform/start.hyde', 'rb') as f:
                 dec = f.read()
             key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-            aes = vial.Vial(key32)
+            aes = vial.Vial(key32, counter_value=self.app.ctr_value)
             dec = aes.decrypt(dec, self.path+'/transform/start.ctr')
             widget.text = dec
 
@@ -196,6 +217,7 @@ class Way(object):
         self.default_target = self.path + '/transform/dr/'
 
     def add(self, item, from_screen):
+        self.get_screens()
         scroll = self.scr.ids.filelist
         if len(item) == 0:
             itemlist = []
@@ -209,22 +231,26 @@ class Way(object):
             for i in itemlist:
                 if i not in self.app.flist:
                     self.app.flist.append(i.encode('utf-8'))
-                    i = ntpath.basename(i.encode('utf-8'))
-                    scroll.add_widget(FileItem(text=i))
+                    ipath = i.encode('utf-8')
+                    i = ntpath.basename(ipath)
+                    scroll.add_widget(FileItem(text=i, way=self, path=ipath))
         else:
             i = item[0].encode('utf-8')
             if i not in self.app.flist:
                 self.app.flist.append(i)
+                ipath = i
                 i = ntpath.basename(i)
-                scroll.add_widget(FileItem(text=i))
+                scroll.add_widget(FileItem(text=i, way=self, path=ipath))
 
     def hyde(self, target=None):
+        self.buttons(True)
         target = self.default_target if target is None else target
         if self.app.flist == []:
+            self.buttons()
             return
         flist = self.app.flist
         key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-        aes = vial.Vial(key32)
+        aes = vial.Vial(key32, counter_value=self.app.ctr_value)
         for child in self.scr.ids.filelist.children:
             child.children[1].disabled = True
         for item in flist:
@@ -251,33 +277,39 @@ class Way(object):
         # removing file from 'flist' i.e. during encryption
         if self.app.flist != []:
             if target == op.join(self.path, '/transform/dr/'):
-                self.scr.hyde(self.scr.unlock)
+                self.scr.hyde()
             else:
-                self.scr.hyde(self.scr.unlock, target)
+                self.scr.hyde(target)
         else:
-            self.scr.unlock.disabled = False
-            if self.upl_screens == []:
-                for i, screen in enumerate(self.scr.parent.screen_names):
-                    if screen == 'uploader':
-                        self.upl_screens.append(i)
-                        Clock.schedule_once(partial(self.update, i))
-                    elif screen == 'viewer':
-                        Clock.schedule_once(partial(self.update, i))
-                        self.upl_screens.append(i)
-            else:
-                p1 = partial(self.update, self.upl_screens[0])
-                p2 = partial(self.update, self.upl_screens[1])
-                Clock.schedule_once(p1)
-                Clock.schedule_once(p2)
+            self.buttons()
+            p1 = partial(self.update, self.upl_screens[0])
+            p2 = partial(self.update, self.upl_screens[1])
+            Clock.schedule_once(p1)
+            Clock.schedule_once(p2)
+
+    def get_screens(self):
+        if self.upl_screens == []:
+            for i, screen in enumerate(self.scr.parent.screen_names):
+                if screen == 'uploader':
+                    self.upl_screens.append(i)
+                elif screen == 'viewer':
+                    self.upl_screens.append(i)
 
     def update(self, i, *args):
         self.scr.parent.screens[i].ids.laboratory._update_files()
         self.scr.parent.screens[i].ids.machine._update_files()
 
+    def buttons(self, disabled=False):
+        self.app.uploader.ids.upload_add.disabled = disabled
+        self.app.uploader.ids.upload_hyde.disabled = disabled
+        self.app.viewer.ids.view_add.disabled = disabled
+        self.app.viewer.ids.view_hyde.disabled = disabled
+
 
 class Uploader(Screen):
     def __init__(self, **kw):
         self.app = App.get_running_app()
+        self.app.uploader = self
         self.path = self.app.path
         self.driveltrs = []
         super(Uploader, self).__init__(**kw)
@@ -310,15 +342,14 @@ class Uploader(Screen):
     def changerootpath(self, path, *args):
         self.ids.machine.rootpath = path
 
-    def hyde(self, button, *args):
-        button.disabled = True
-        self.unlock = button
+    def hyde(self, *args):
         Thread(target=self._hyde).start()
 
 
 class Viewer(Screen):
     def __init__(self, **kw):
         self.app = App.get_running_app()
+        self.app.viewer = self
         self.path = self.app.path
         self.driveltrs = []
         super(Viewer, self).__init__(**kw)
@@ -345,12 +376,10 @@ class Viewer(Screen):
     def changerootpath(self, path, *args):
         self.ids.machine.rootpath = path
 
-    def hyde(self, button, target):
+    def hyde(self, target):
         # if not target, show popup where warning that to extract you have to
         # select folder!
         self.target = target
-        button.disabled = True
-        self.unlock = button
         if isinstance(type(target), ListProperty):
             self.target = self.target[0].encode('utf-8')
         from functools import partial
@@ -368,7 +397,9 @@ class NewPass(Screen):
 class FileItem(BoxLayout):
     def __init__(self, **kw):
         self.app = App.get_running_app()
-        self.text = kw['text']
+        self.text = kw.get('text', '---')
+        self.way = kw.get('way', None)
+        self.path = kw.get('path', '')
         super(FileItem, self).__init__(**kw)
 
     def rm(self):
@@ -376,14 +407,24 @@ class FileItem(BoxLayout):
             if self.text in item:
                 self.app.flist.remove(item)
 
+    def trash(self):
+        self.rm()
+        if op.exists(self.path):
+            os.remove(self.path)
+        if 'transform' in self.path and op.exists(self.path[:-3]+'ctr'):
+            os.remove(self.path[:-3]+'ctr')
+        for i in self.way.upl_screens:
+            self.way.update(i)
+        self.parent.remove_widget(self)
+
 
 class Root(ScreenManager):
     def __init__(self, **kw):
         self.app = App.get_running_app()
         self.path = self.app.path
         super(Root, self).__init__(**kw)
-        if op.exists(self.path+'/._'):
-            self.current = 'home'
+        if not op.exists(self.path+'/._'):
+            self.current = 'start'
 
 
 class Unique(object):
