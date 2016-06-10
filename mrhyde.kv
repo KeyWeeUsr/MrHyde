@@ -26,28 +26,18 @@
             height: self.texture_size[1]
         Widget:
             size_hint_y: 0.4
-        BoxLayout:
+        HomeInput:
+            id: pas
             size_hint: 0.8, 0.2
             pos_hint: {'center_x': 0.5}
-            HomeInput:
-                id: pas
-                size_hint: 1, 1
-                on_text_validate: steps.trigger_action()
-            Spinner:
-                id: ctr_value
-                color: [0, 0, 0, 0]
-                background_color: [0, 0, 0, 0]
-                size_hint_x: None
-                width: 0
-                text: '1'
-                values: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+            on_text_validate: steps.trigger_action()
         Widget:
             size_hint_y: 0.1
         Button:
             id: steps
-            size_hint: 0.5,0.2
+            size_hint: 0.5, 0.2
             pos_hint: {'center_x': 0.5}
-            text: str(root.phase)+'/4'
+            text: str(root.phase) + '/4'
             on_release: root.create()
         Widget:
             size_hint_y: 0.1
@@ -115,12 +105,12 @@
     BoxLayout:
         orientation: 'vertical'
         ActionBar:
-            pos_hint: {'top':1}
+            pos_hint: {'top': 1}
             ActionView:
                 ActionPrevious:
                     with_previous: False
                     app_icon: 'quill.png'
-                    app_icon_width: root.width*0.8
+                    app_icon_width: root.width * 0.8
                     title: 'Mr. Hyde'
                     on_release: root.lock()
                     on_release: root.manager.current = 'home'
@@ -280,17 +270,17 @@
     height: '50dp'
     multiline: False
     size_hint: 0.5, None
-    pos_hint: {'center_x':0.5, 'center_y': 0.5}
+    pos_hint: {'center_x': 0.5, 'center_y': 0.5}
 
 <ScrollLabel@Label>:
-    size_hint_y:None
-    text_size:self.width,None
-    height:self.texture_size[1]
+    size_hint_y: None
+    text_size: self.width, None
+    height: self.texture_size[1]
 
 <Caption@Label>:
     canvas.before:
         Color:
-            rgba: 0.2,0.2,0.2,1
+            rgba: 0.2, 0.2, 0.2, 1
         Rectangle:
             size: self.size
             pos: self.pos

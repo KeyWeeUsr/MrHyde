@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # MrHyde - A simple way to encrypt your files
-# Version: 0.5
+# Version: 0.5.1
 # Copyright (C) 2016, KeyWeeUsr(Peter Badida) <keyweeusr@gmail.com>
 # License: GNU GPL v3.0
 #
@@ -90,28 +90,15 @@ class Start(Screen):
                                           'that will tell you if you typed '
                                           'your passwords correctly. If the '
                                           'wrong passwords are typed, your '
-                                          'text won\'t show correctly.'
-                                          '\n\nThe value on the right is '
-                                          'a custom increment for your '
-                                          'counter. Choose a value from 1 to '
-                                          '10. The smaller number, the more '
-                                          'often will the counter change. If '
-                                          'you don\'t know what the value '
-                                          'means, leave the default one.')
+                                          'text won\'t show correctly.')
                     self.ids.log.scroll_to(self.ids.log.children[0])
-                self.ids.ctr_value.width = self.ids.pas.width / 4.0
-                self.ids.ctr_value.color = [1, 1, 1, 1]
-                self.ids.ctr_value.background_color = [1, 1, 1, 1]
         elif self.phase == 4:
             pas = self.ids.pas.text.encode('utf-8')
-            self.app.ctr_value = self.ids.ctr_value.text
             if pas != '':
                 with open(self.path+'/transform/start.hyde', 'wb') as f:
                     key32 = ps.hash(self.pas, self.pas2, 1024, 1, 1, 32)
-                    aes = vial.Vial(key32, counter_value=self.app.ctr_value)
+                    aes = vial.Vial(key32)
                     f.write(aes.encrypt(pas, self.path+'/transform/start.ctr'))
-                with open(self.path+'/value.ctr', 'wb') as f:
-                    f.write(self.app.ctr_value)
                 self.phase += 1
                 del self.h, self.pas, self.pas2
                 self.manager.current = 'home'
@@ -154,8 +141,6 @@ class Home(Screen):
             else:
                 with open(self.path+'/._', 'wb') as f:
                     f.write(pas)
-                with open(self.path+'/value.ctr', 'rb') as f:
-                    self.app.ctr_value = f.read()
                 self.ids.labtitle.text = 'Mr. Hyde'
                 button.text = 'Enter!'
                 self.ids.pas2.disabled = False
@@ -173,8 +158,6 @@ class Home(Screen):
     def delete(self):
         if op.exists(self.path+'/._'):
             os.remove(self.path+'/._')
-        if op.exists(self.path+'/value.ctr'):
-            os.remove(self.path+'/value.ctr')
         if op.exists(self.path+'/transform'):
             shutil.rmtree(self.path+'/transform')
         Clock.schedule_once(self.deleted, 5)
@@ -196,7 +179,7 @@ class Lab(Screen):
             with open(self.path+'/transform/start.hyde', 'rb') as f:
                 dec = f.read()
             key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-            aes = vial.Vial(key32, counter_value=self.app.ctr_value)
+            aes = vial.Vial(key32)
             dec = aes.decrypt(dec, self.path+'/transform/start.ctr')
             widget.text = dec
 
@@ -250,7 +233,7 @@ class Way(object):
             return
         flist = self.app.flist
         key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
-        aes = vial.Vial(key32, counter_value=self.app.ctr_value)
+        aes = vial.Vial(key32)
         for child in self.scr.ids.filelist.children:
             child.children[1].disabled = True
         for item in flist:
@@ -267,7 +250,7 @@ class Way(object):
             fin.close()
             fout.close()
             for child in children:
-                if i in child.children[0].text:
+                if i in child.children[0].children[0].text:
                     self.scr.ids.filelist.remove_widget(child)
                     self.app.flist.remove(item)
 

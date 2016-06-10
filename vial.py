@@ -1,52 +1,25 @@
 import os
-import array
+import codecs
 from Crypto.Cipher import AES
+from Crypto.Util import Counter as Ctr
 
 
 class Secret(object):
-    def __init__(self, **kw):
-        secret = kw.get('secret', None)
-        # let user choose a value 1 - 10 for "c+1"
-        self.custom_value = kw.get('custom_value', None)
-        # let user choose own counter
-        self.custom_counter = kw.get('custom_counter', None)
+    def __init__(self, secret=None):
         if secret is None:
             secret = os.urandom(16)
         self.secret = secret
-        self.reset()
-
-    def counter(self):
-        if self.custom_counter:
-            return self.custom_counter(self)
-        else:
-            if self.custom_value:
-                return self._counter(int(self.custom_value))
-            else:
-                return self._counter()
-
-    def _counter(self, value=1):
-        for i, c in enumerate(self.current):
-            if c + value >= 255:
-                self.current[i] = 0
-            else:
-                self.current[i] = c + value
-        return self.current.tostring()
-
-    def reset(self):
-        self.current = array.array('B', self.secret)
+        IV = int(codecs.encode(secret, 'hex'), 16)
+        self.counter = Ctr.new(128, initial_value=IV,
+                               allow_wraparound=True)
 
 
 class Vial(object):
-    def __init__(self, key, **kw):
+    def __init__(self, key):
         self.key = key
-        try:
-            del kw['secret']
-        except:
-            pass
-        self.kw = kw
 
     def encrypt(self, text, counter_path):
-        secret = Secret(**self.kw)
+        secret = Secret()
         with open(counter_path, 'wb') as f:
             f.write(secret.secret)
         crypto = AES.new(self.key, AES.MODE_CTR, counter=secret.counter)
@@ -56,13 +29,13 @@ class Vial(object):
     def decrypt(self, text, counter_path):
         with open(counter_path, 'rb') as f:
             load_secret = f.read()
-        secret = Secret(secret=load_secret, **self.kw)
+        secret = Secret(secret=load_secret)
         crypto = AES.new(self.key, AES.MODE_CTR, counter=secret.counter)
         decrypted = crypto.decrypt(text)
         return decrypted
 
     def encrypt_stream(self, input, output):
-        secret = Secret(**self.kw)
+        secret = Secret()
         counter_path = os.path.splitext(output.name)[0] + '.ctr'
         with open(counter_path, 'wb') as f:
             f.write(secret.secret)
@@ -78,7 +51,7 @@ class Vial(object):
         counter_path = os.path.splitext(input.name)[0] + '.ctr'
         with open(counter_path, 'rb') as f:
             counter_read = f.read()
-        secret = Secret(secret=counter_read, **self.kw)
+        secret = Secret(secret=counter_read)
         crypto = AES.new(self.key, AES.MODE_CTR, counter=secret.counter)
         while True:
             data = input.read(4096)
@@ -91,26 +64,26 @@ class Vial(object):
 if __name__ == '__main__':
     root_path = os.path.abspath(os.path.dirname(__file__))
     key32 = '0123456789' * 3 + 'QW'
-    vial = Vial(key32, custom_value=2)
+    vial = Vial(key32)
     path = root_path + '/vial_test.ctr'
     enc = vial.encrypt(16 * 'a', path)
     print 'enc: ', enc, len(enc)
 
-    vial = Vial(key32, custom_value=2)
+    vial = Vial(key32)
     path = root_path + '/vial_test.ctr'
     dec = vial.decrypt(enc, path)
     print 'dec: ', dec, len(dec)
 
     vial = Vial(key32)
-    finput = open(root_path + 'encrypt_me.png', 'rb')
-    foutput = open(root_path + 'im_encrypted.png', 'wb')
+    finput = open(root_path + '/encrypt_me.png', 'rb')
+    foutput = open(root_path + '/im_encrypted.png', 'wb')
     vial.encrypt_stream(finput, foutput)
-    fin.close()
-    fout.close()
+    finput.close()
+    foutput.close()
 
     vial = Vial(key32)
-    finput = open(root_path + 'im_encrypted.png', 'rb')
-    foutput = open(root_path + 'im_decrypted.png', 'wb')
+    finput = open(root_path + '/im_encrypted.png', 'rb')
+    foutput = open(root_path + '/im_decrypted.png', 'wb')
     vial.decrypt_stream(finput, foutput)
-    fin.close()
-    fout.close()
+    finput.close()
+    foutput.close()
