@@ -4,19 +4,24 @@
         Rectangle:
             source: 'background.png'
             size: self.size
+
     Home:
         name: 'home'
+
     Start:
         id: start
         name: 'start'
+
     Lab:
         name: 'laboratory'
 
 <Start>:
     BoxLayout:
         orientation: 'vertical'
+
         Widget:
             size_hint_y: 0.3
+
         Label:
             font_size: '20dp'
             text: 'Set unique passwords for me!\nPlease do not forget them.'
@@ -24,23 +29,29 @@
             halign: 'center'
             size_hint_y: None
             height: self.texture_size[1]
+
         Widget:
             size_hint_y: 0.4
+
         HomeInput:
             id: pas
             size_hint: 0.8, 0.2
             pos_hint: {'center_x': 0.5}
             on_text_validate: steps.trigger_action()
+
         Widget:
             size_hint_y: 0.1
+
         Button:
             id: steps
             size_hint: 0.5, 0.2
             pos_hint: {'center_x': 0.5}
             text: str(root.phase) + '/4'
             on_release: root.create()
+
         Widget:
             size_hint_y: 0.1
+
         Console:
             id: log
             text:
@@ -55,21 +66,26 @@
 <Home>:
     BoxLayout:
         orientation: 'vertical'
+
         Label:
             id: labtitle
             text: 'Dr. J. Quill'
             font_size: '60dp'
             size_hint_y: None
             height: '180dp'
+
         Image:
             size_hint_y: 0.3
             source: 'quill.png'
+
         Widget:
             size_hint_y: 0.2
+
         Label:
             text: 'Password 1:'
             size_hint_y: None
             height: self.texture_size[1]
+
         HomeInput:
             id: pas1
             on_text_validate:
@@ -78,18 +94,23 @@
                 if not pas2.disabled: pas2.focus = True
             on_text_validate:
                 if pas2.disabled: pas1.focus = True
+
         Widget:
             size_hint_y: 0.05
+
         Label:
             text: 'Password 2:'
             size_hint_y: None
             height: self.texture_size[1]
+
         HomeInput:
             id: pas2
             disabled: True
             on_text_validate: drinkbutton.trigger_action()
-        Widget
+
+        Widget:
             size_hint_y: 0.2
+
         Button:
             id: drinkbutton
             text: 'Drink!'
@@ -97,6 +118,7 @@
             pos_hint: {'center_x': 0.5}
             height: '50dp'
             on_release: root.check(self)
+
         Console:
             id: log
 
@@ -104,8 +126,10 @@
     content: root.ids.content
     BoxLayout:
         orientation: 'vertical'
+
         ActionBar:
             pos_hint: {'top': 1}
+
             ActionView:
                 ActionPrevious:
                     with_previous: False
@@ -114,49 +138,65 @@
                     title: 'Mr. Hyde'
                     on_release: root.lock()
                     on_release: root.manager.current = 'home'
+
                 ActionButton:
                     text: 'Uploader'
                     on_release: root.content.current = 'uploader'
+
                 ActionButton:
                     text: 'Viewer'
                     on_release: root.content.current = 'viewer'
+
                 ActionButton:
                     text: 'Export'
                     disabled: True
                     on_release: root.content.current = 'exporter'
+
                 ActionButton:
                     text: 'New Pass'
                     on_release: root.content.current = 'newpass'
+
                 ActionButton:
                     text: 'About'
                     on_release: root.content.current = 'about'
+
         ScreenManager:
             id: content
+
             Screen:
+                name: 'verify'
                 Console:
                     id: verify
+
             Uploader:
                 name: 'uploader'
+
             Viewer:
                 name: 'viewer'
+
             Exporter:
                 name: 'exporter'
+
             NewPass:
                 name: 'newpass'
+
             About:
                 name: 'about'
 
 <Uploader>:
     BoxLayout:
         orientation: 'vertical'
+
         Caption:
             size_hint_y: None
             height: self.texture_size[1]
             text: 'Machine'
+
         BoxLayout:
             id: upload_drives
             size_hint_y: None
             height: '30dp'
+
         Splitter:
             sizable_from: 'bottom'
             min_size: 0
@@ -167,27 +207,33 @@
             size_hint_y: None
             height: self.texture_size[1]
             text: 'Laboratory'
+
         FileChooserIconView:
             id: laboratory
             rootpath: root.path+'/transform/dr'
             filters:
                 [lambda folder, filename: not filename.endswith('.ctr')]
+
         BoxLayout:
             size_hint_y: None
             height: '100dp'
+
             ScrollView:
                 GridLayout:
                     cols: 1
                     id: filelist
                     size_hint: 0.8, None
                     height: self.minimum_height
+
             BoxLayout:
                 size_hint_x: 0.2
                 orientation: 'vertical'
+
                 Button:
                     id: upload_add
                     text: 'Add'
                     on_release: root.add(root.ids.machine.selection, 'upload')
+
                 Button:
                     id: upload_hyde
                     text: 'Hyde'
@@ -196,46 +242,57 @@
 <Viewer>:
     BoxLayout:
         orientation: 'vertical'
+
         Caption:
             size_hint_y: None
             height: self.texture_size[1]
             text: 'Laboratory'
+
         Splitter:
             sizable_from: 'bottom'
             min_size: 0
             rescale_with_parent: True
+
             FileChooserIconView:
                 id: laboratory
                 rootpath: root.path+'/transform/dr'
                 filters:
                     [lambda folder, filename: not filename.endswith('.ctr')]
+
         Caption:
             size_hint_y: None
             height: self.texture_size[1]
             text: 'Machine'
+
         BoxLayout:
             id: view_drives
             size_hint_y: None
             height: '30dp'
+
         FileChooserIconView:
             id: machine
             dirselect: True
+
         BoxLayout:
             size_hint_y: None
             height: '100dp'
+
             ScrollView:
                 GridLayout:
                     cols: 1
                     id: filelist
                     size_hint: 0.8, None
                     height: self.minimum_height
+
             BoxLayout:
                 size_hint_x: 0.2
                 orientation: 'vertical'
+
                 Button:
                     id: view_add
                     text: 'Add'
                     on_release: root.add(root.ids.laboratory.selection, 'view')
+
                 Button:
                     id: view_hyde
                     text: 'Extract'
@@ -244,18 +301,25 @@
 <NewPass>:
     BoxLayout:
         orientation: 'vertical'
+
         Label:
             text: 'Change passwords for:'
+
         Label:
             text: 'Me'
+
         HomeInput:
             id: me
+
         Label:
             text: 'Data'
+
         HomeInput:
             hint_text: 'Password 1'
+
         HomeInput:
             hint_text: 'Password 2'
+
         Button:
             text: 'Change!'
 
@@ -294,25 +358,32 @@
 <FileItem>:
     size_hint_y: None
     height: '30dp'
+
     Button:
         text: 'x'
         size_hint_x: 0.2
         on_release: root.parent.remove_widget(root)
         on_release: root.rm()
+
     Widget:
         size_hint_x: 0.02
+
     Button:
         canvas:
             Color:
                 rgba: 0.8, 0, 0, 1
+
             Rectangle:
                 source: 'trash.png'
                 size: self.height * 0.7, self.height * 0.7
                 pos: [c-self.height * 0.35 for i, c in enumerate(self.center)]
+
         size_hint_x: 0.2
         on_release: root.trash()
+
     Widget:
         size_hint_x: 0.02
+
     AnchorLayout:
         anchor_x: 'left'
         anchor_y: 'center'

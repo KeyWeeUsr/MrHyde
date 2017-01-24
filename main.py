@@ -1,17 +1,8 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 # MrHyde - A simple way to encrypt your files
-# Version: 0.5.3
+# Version: 0.6.0
 # Copyright (C) 2016, KeyWeeUsr(Peter Badida) <keyweeusr@gmail.com>
 # License: GNU GPL v3.0
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
-# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 #
 # More info in LICENSE.txt
 #
@@ -19,6 +10,7 @@
 # LICENSE.txt file shall be included in all copies or substantial portions
 # of the Software.
 
+from __future__ import unicode_literals
 import os
 import re
 import ntpath
@@ -26,37 +18,43 @@ import shutil
 import vial
 import os.path as op
 import pyscrypt as ps
+from functools import partial
+from threading import Thread
+
 from kivy.app import App
 from kivy.clock import Clock
-from functools import partial
 from kivy.utils import platform
 from kivy.uix.button import Button
-from threading import Thread, Event
 from kivy.uix.boxlayout import BoxLayout
-from kivy.properties import BooleanProperty, ListProperty
-from kivy.uix.screenmanager import Screen, ScreenManager
+from kivy.properties import (
+    BooleanProperty, ListProperty
+)
+from kivy.uix.screenmanager import (
+    Screen, ScreenManager, NoTransition
+)
 
 
 class Start(Screen):
-    def __init__(self, **kw):
+    def __init__(self, **kwargs):
         self.app = App.get_running_app()
         self.path = self.app.path
         self.phase = 1
-        super(Start, self).__init__(**kw)
+        super(Start, self).__init__(**kwargs)
 
     def create(self, *args):
         pas = self.ids.pas.text.encode('utf-8')
-        if not op.exists(self.path+'/._'):
+        if not op.exists(op.join(self.path, '._')):
             if pas != '':
-                self.h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
-                with open(self.path+'/._', 'wb') as f:
+                mid = self.app.mid.encode('utf-8')
+                self.h = ps.hash(pas, mid, 1024, 1, 1, 32)
+                with open(op.join(self.path, '._'), 'wb') as f:
                     f.write(self.h)
                 self.phase += 1
                 self.ids.pas.text = ''
-                self.ids.steps.text = str(self.phase)+'/4'
+                self.ids.steps.text = str(self.phase) + '/4'
         elif self.phase == 2:
             if pas != '':
-                h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
+                h = ps.hash(pas, self.app.mid.encode('utf-8'), 1024, 1, 1, 32)
                 if self.h == h:
                     self.ids.pas.text = ''
                     self.ids.log.text += ('\n\nData pasword can not be the '
@@ -66,10 +64,10 @@ class Start(Screen):
                     self.pas = pas
                     self.phase += 1
                     self.ids.pas.text = ''
-                    self.ids.steps.text = str(self.phase)+'/4'
+                    self.ids.steps.text = str(self.phase) + '/4'
         elif self.phase == 3:
             if pas != '':
-                h = ps.hash(pas, self.app.mid, 1024, 1, 1, 32)
+                h = ps.hash(pas, self.app.mid.encode('utf-8'), 1024, 1, 1, 32)
                 if self.h == h:
                     self.ids.pas.text = ''
                     self.ids.log.text += ('\n\nData pasword can not be the '
@@ -77,14 +75,14 @@ class Start(Screen):
                     self.ids.log.scroll_to(self.ids.log.children[0])
                 else:
                     self.pas2 = pas
-                    os.mkdir(self.path+'/transform')
-                    os.mkdir(self.path+'/transform/dr')
-                    os.mkdir(self.path+'/transform/mr')
+                    os.mkdir(op.join(self.path, 'transform'))
+                    os.mkdir(op.join(self.path, 'transform', 'dr'))
+                    os.mkdir(op.join(self.path, 'transform', 'mr'))
                     self.ids.pas.text = ''
                     self.app.pas1 = self.pas
                     self.app.pas2 = self.pas2
                     self.phase += 1
-                    self.ids.steps.text = str(self.phase)+'/4'
+                    self.ids.steps.text = str(self.phase) + '/4'
                     self.ids.log.text += ('\n\n* * *'
                                           '\n\nNow set a word or a sentence '
                                           'that will tell you if you typed '
@@ -93,12 +91,14 @@ class Start(Screen):
                                           'text won\'t show correctly.')
                     self.ids.log.scroll_to(self.ids.log.children[0])
         elif self.phase == 4:
-            pas = self.ids.pas.text.encode('utf-8')
+            pas = self.ids.pas.text
             if pas != '':
-                with open(self.path+'/transform/start.hyde', 'wb') as f:
+                start = op.join(self.path, 'transform', 'start.hyde')
+                with open(start, 'wb') as f:
                     key32 = ps.hash(self.pas, self.pas2, 1024, 1, 1, 32)
                     aes = vial.Vial(key32)
-                    f.write(aes.encrypt(pas, self.path+'/transform/start.ctr'))
+                    start_ctr = op.join(self.path, 'transform', 'start.ctr')
+                    f.write(aes.encrypt(pas, start_ctr))
                 self.phase += 1
                 del self.h, self.pas, self.pas2
                 self.manager.current = 'home'
@@ -109,28 +109,29 @@ class Start(Screen):
 
 
 class Home(Screen):
-    def __init__(self, **kw):
+    def __init__(self, **kwargs):
         self.app = App.get_running_app()
         self.path = self.app.path
         self.deleting = False
         self.app.home = self
         self.phase = 1
-        self.stopper = Event()
-        super(Home, self).__init__(**kw)
+        super(Home, self).__init__(**kwargs)
 
     def check(self, button):
+        if not op.exists(op.join(self.path, '._')):
+            return
         pas1 = self.ids.pas1.text.encode('utf-8')
         pas2 = self.ids.pas2.text.encode('utf-8')
-        pas = ps.hash(pas1, self.app.mid, 1024, 1, 1, 32)
+        pas = ps.hash(pas1, self.app.mid.encode('utf-8'), 1024, 1, 1, 32)
         if self.phase == 1:
             self.ids.pas1.text = ''
-            with open(self.path+'/._', 'rb') as f:
+            with open(op.join(self.path, '._'), 'rb') as f:
                 h = f.read()
             if pas not in h:
                 if len(h) < 36:
                     self.ids.log.text += '\nWrong password!'
-                    with open(self.path+'/._', 'ab') as f:
-                        f.write('x')
+                    with open(op.join(self.path, '._'), 'ab') as f:
+                        f.write(b'x')
                 else:
                     if not self.deleting:
                         self.deleting = True
@@ -139,7 +140,7 @@ class Home(Screen):
                                              'deleted all your data.')
                 return
             else:
-                with open(self.path+'/._', 'wb') as f:
+                with open(op.join(self.path, '._'), 'wb') as f:
                     f.write(pas)
                 self.ids.labtitle.text = 'Mr. Hyde'
                 button.text = 'Enter!'
@@ -153,35 +154,43 @@ class Home(Screen):
             self.ids.pas2.text = ''
             self.ids.log.text = ''
             self.app.lab.verify(self.app.lab.ids.verify)
+            self.app.lab.ids.content.current = 'verify'
             self.manager.current = 'laboratory'
 
     def delete(self):
-        if op.exists(self.path+'/._'):
-            os.remove(self.path+'/._')
-        if op.exists(self.path+'/transform'):
-            shutil.rmtree(self.path+'/transform')
+        if op.exists(op.join(self.path, '._')):
+            os.remove(op.join(self.path, '._'))
+        if op.exists(op.join(self.path, 'transform')):
+            shutil.rmtree(op.join(self.path, 'transform'))
         Clock.schedule_once(self.deleted, 5)
 
     def deleted(self, t):
         self.manager.current = 'start'
+        self.ids.log.text = ''
         self.deleting = False
 
 
 class Lab(Screen):
-    def __init__(self, **kw):
+    def __init__(self, **kwargs):
         self.app = App.get_running_app()
         self.path = self.app.path
-        super(Lab, self).__init__(**kw)
+        super(Lab, self).__init__(**kwargs)
         self.app.lab = self
 
     def verify(self, widget):
-        if op.exists(self.path+'/transform/start.hyde'):
-            with open(self.path+'/transform/start.hyde', 'rb') as f:
+        start = op.join(self.path, 'transform', 'start.hyde')
+        if op.exists(start):
+            with open(start, 'rb') as f:
                 dec = f.read()
             key32 = ps.hash(self.app.pas1, self.app.pas2, 1024, 1, 1, 32)
             aes = vial.Vial(key32)
-            dec = aes.decrypt(dec, self.path+'/transform/start.ctr')
-            widget.text = dec
+            start_ctr = op.join(self.path, 'transform', 'start.ctr')
+            dec = aes.decrypt(dec, start_ctr)
+            try:
+                widget.text = dec.decode('utf-8')
+            except Exception as e:
+                widget.text = '<Unable to decrypt>'
+                print(e)  # to logger
 
     def lock(self):
         home = self.app.home
@@ -197,7 +206,7 @@ class Way(object):
         self.upl_screens = []
         self.scr = screen
         self.path = self.scr.app.path
-        self.default_target = self.path + '/transform/dr/'
+        self.default_target = op.join(self.path, 'transform', 'dr')
 
     def add(self, item, from_screen):
         self.get_screens()
@@ -213,12 +222,12 @@ class Way(object):
                     itemlist.append(i)
             for i in itemlist:
                 if i not in self.app.flist:
-                    self.app.flist.append(i.encode('utf-8'))
-                    ipath = i.encode('utf-8')
+                    self.app.flist.append(i)
+                    ipath = i
                     i = ntpath.basename(ipath)
                     scroll.add_widget(FileItem(text=i, way=self, path=ipath))
         else:
-            i = item[0].encode('utf-8')
+            i = item[0]
             if i not in self.app.flist:
                 self.app.flist.append(i)
                 ipath = i
@@ -240,10 +249,10 @@ class Way(object):
             children = self.scr.ids.filelist.children
             i = ntpath.basename(item)
             fin = open(item, 'rb')
-            if isinstance(target, ListProperty) or isinstance(target, list):
-                target = target[0].encode('utf-8')
+            if isinstance(target, (ListProperty, list)):
+                target = target[0]
             fout = open(op.join(target, i), 'wb')
-            if 'transform' + os.path.sep + 'dr' not in item:
+            if op.join('transform', 'dr') not in item:
                 aes.encrypt_stream(fin, fout)
             else:
                 aes.decrypt_stream(fin, fout)
@@ -259,7 +268,7 @@ class Way(object):
         # are en(de)crypted properly, because Thread always fails before
         # removing file from 'flist' i.e. during encryption
         if self.app.flist != []:
-            if target == op.join(self.path, '/transform/dr/'):
+            if target == op.join(self.path, 'transform', 'dr'):
                 self.scr.hyde()
             else:
                 self.scr.hyde(target)
@@ -290,12 +299,12 @@ class Way(object):
 
 
 class Uploader(Screen):
-    def __init__(self, **kw):
+    def __init__(self, **kwargs):
         self.app = App.get_running_app()
         self.app.uploader = self
         self.path = self.app.path
         self.driveltrs = []
-        super(Uploader, self).__init__(**kw)
+        super(Uploader, self).__init__(**kwargs)
         Clock.schedule_interval(self.checkpath, 1)
         Clock.schedule_once(self.getletters, 1)
         way = Way(self)
@@ -303,8 +312,9 @@ class Uploader(Screen):
         self._hyde = way.hyde
 
     def checkpath(self, t):
-        if op.exists(self.path+'/transform/dr'):
-            self.ids.laboratory.rootpath = self.path+'/transform/dr'
+        dr = op.join(self.path, 'transform', 'dr')
+        if op.exists(dr):
+            self.ids.laboratory.rootpath = dr
             Clock.unschedule(self.checkpath)
 
     def getletters(self, t):
@@ -330,12 +340,12 @@ class Uploader(Screen):
 
 
 class Viewer(Screen):
-    def __init__(self, **kw):
+    def __init__(self, **kwargs):
         self.app = App.get_running_app()
         self.app.viewer = self
         self.path = self.app.path
         self.driveltrs = []
-        super(Viewer, self).__init__(**kw)
+        super(Viewer, self).__init__(**kwargs)
         Clock.schedule_once(self.getletters, 1)
         way = Way(self)
         self.add = way.add
@@ -378,12 +388,12 @@ class NewPass(Screen):
 
 
 class FileItem(BoxLayout):
-    def __init__(self, **kw):
+    def __init__(self, text='---', way=None, path='', **kwargs):
         self.app = App.get_running_app()
-        self.text = kw.get('text', '---')
-        self.way = kw.get('way', None)
-        self.path = kw.get('path', '')
-        super(FileItem, self).__init__(**kw)
+        self.text = text
+        self.way = way
+        self.path = path
+        super(FileItem, self).__init__(**kwargs)
 
     def rm(self):
         for item in self.app.flist:
@@ -394,29 +404,34 @@ class FileItem(BoxLayout):
         self.rm()
         if op.exists(self.path):
             os.remove(self.path)
-        if 'transform' in self.path and op.exists(self.path[:-3]+'ctr'):
-            os.remove(self.path[:-3]+'ctr')
+        pth = self.path
+        if 'transform' in pth and op.exists(self.path[:-3] + 'ctr'):
+            os.remove(self.path[:-3] + 'ctr')
         for i in self.way.upl_screens:
             self.way.update(i)
         self.parent.remove_widget(self)
 
 
 class Root(ScreenManager):
-    def __init__(self, **kw):
+    def __init__(self, **kwargs):
         self.app = App.get_running_app()
         self.path = self.app.path
-        super(Root, self).__init__(**kw)
-        if not op.exists(self.path+'/._'):
+        self.transition = NoTransition()
+        super(Root, self).__init__(**kwargs)
+        if not op.exists(op.join(self.path, '._')):
             self.current = 'start'
 
 
 class Unique(object):
     def get(self):
-        getattr(self, 'get_'+str(platform))()
+        getattr(self, 'get_' + str(platform))()
         return self.unique
 
     def get_win(self):
-        import _winreg
+        try:
+            import _winreg
+        except ImportError:
+            import winreg as _winreg
         registry = _winreg.HKEY_LOCAL_MACHINE
         address = 'SOFTWARE\\Microsoft\\Cryptography'
         keyargs = _winreg.KEY_READ | _winreg.KEY_WOW64_64KEY
@@ -444,6 +459,7 @@ class MrHyde(App):
     def build(self):
         self.mid = Unique().get()
         return Root()
+
 
 if __name__ == '__main__':
     MrHyde().run()
